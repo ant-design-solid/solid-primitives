@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [solid({ hot: !process.env.VITEST })],
   resolve: {
     alias: {
-      '@s-primitives/core': path.resolve(import.meta.dirname, 'packages/core/src'),
+      '@s-primitives/web': path.resolve(import.meta.dirname, 'packages/web/src'),
       '@s-primitives/shared': path.resolve(import.meta.dirname, 'packages/shared/src'),
     },
     dedupe: ['solid-js'],

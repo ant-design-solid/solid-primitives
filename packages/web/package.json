@@ -1,7 +1,8 @@
 {
-  "name": "@s-primitives/core",
-  "version": "0.1.0-beta.1",
-  "description": "",
+  "name": "@s-primitives/web",
+  "version": "0.1.0-beta.2",
+  "description": "solid primitives",
+  "author": "Kory Lee <https://github.com/korylee>",
   "type": "module",
   "files": [
     "dist"
@@ -38,6 +39,5 @@
     "@s-primitives/shared": "^0.1.0-beta.0",
     "solid-js": "^1.9.12"
   },
-  "author": "",
   "license": "ISC"
 }
