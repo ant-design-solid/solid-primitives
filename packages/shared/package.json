@@ -1,6 +1,6 @@
 {
   "name": "@s-primitives/shared",
-  "version": "0.1.0-beta.3",
+  "version": "0.1.0-beta.4",
   "description": "solid primitives",
   "author": "Kory Lee <https://github.com/korylee>",
   "type": "module",
