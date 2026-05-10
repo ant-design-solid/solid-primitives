@@ -1,6 +1,6 @@
-import { createRoot } from 'solid-js'
+import { access, isIOS, MaybeAccessor, MaybeElement, noop, toArray, tryOnCleanup } from '@s-primitives/shared'
+import { createMemo, createRoot } from 'solid-js'
 import { ConfigurableWindow, defaultWindow } from '../_configurable'
-import { access, isIOS, MaybeAccessor, MaybeElement, noop, tryOnCleanup } from '@s-primitives/shared'
 import { useEventListener } from '../event-listener'
 
 export interface OnClickOutsideOptions<Controls extends boolean = false> extends ConfigurableWindow {
@@ -39,6 +39,63 @@ export type OnClickOutsideReturn<Controls extends boolean = false> = Controls ex
 
 let _iOSWorkaround = false
 
+function isEventInsideNodes(event: Event, nodes: readonly Node[]): boolean {
+  if (!nodes.length) return false
+
+  const target = event.target
+  const path = event.composedPath?.() ?? []
+
+  return nodes.some(node => {
+    if (node === target) return true
+    if (path.includes(node)) return true
+    return target instanceof Node && node.contains(target)
+  })
+}
+
+function resolveListenerRoots(nodes: readonly Node[], window: Window): (Window | ShadowRoot)[] {
+  const seen = new Set<Window | ShadowRoot>([window])
+
+  for (const node of nodes) {
+    const root = node.getRootNode?.()
+    if (root instanceof ShadowRoot && !seen.has(root)) {
+      seen.add(root)
+    }
+  }
+
+  return [...seen]
+}
+
+function resolveIgnoreNodes(
+  ignore: MaybeAccessor<(MaybeAccessor<MaybeElement> | string)[]>,
+  roots: readonly (Window | ShadowRoot)[],
+  window: Window,
+): Node[] {
+  const seen = new Set<Node>()
+
+  const addNode = (node: Node | null | undefined) => {
+    if (node && !seen.has(node)) {
+      seen.add(node)
+    }
+  }
+
+  for (const entry of access(ignore)) {
+    if (typeof entry === 'string') {
+      window.document.querySelectorAll(entry).forEach(addNode)
+
+      for (const root of roots) {
+        if (root instanceof ShadowRoot) {
+          root.querySelectorAll(entry).forEach(addNode)
+        }
+      }
+      continue
+    }
+
+    addNode(access(entry))
+  }
+
+  return [...seen]
+}
+
 export function onClickOutside<T extends OnClickOutsideOptions>(
   target: MaybeAccessor<MaybeElement>,
   handler: OnClickOutsideHandler<T>,
@@ -65,29 +122,20 @@ export function onClickOutside(
   if (isIOS && !_iOSWorkaround) {
     _iOSWorkaround = true
     const listenerOptions = { passive: true }
-    // Not using useEventListener because these event handlers must not be disposed.
-    // See previously linked references and https://github.com/vueuse/vueuse/issues/4724
     Array.from(window.document.body.children).forEach(el => el.addEventListener('click', noop, listenerOptions))
     window.document.documentElement.addEventListener('click', noop, listenerOptions)
   }
 
+  const getTargetNodes = createMemo(() => toArray(access(target)).filter(node => node instanceof Node))
+  const getListenerRoots = createMemo(() => resolveListenerRoots(getTargetNodes(), window))
+
   let shouldListen = true
   const shouldIgnore = (event: Event) =>
-    access(ignore).some(target => {
-      if (typeof target === 'string') {
-        return Array.from(window.document.querySelectorAll(target)).some(
-          el => el === event.target || event.composedPath().includes(el),
-        )
-      }
-      const el = access(target)
-      return el && (el === event.target || event.composedPath().includes(el))
-    })
+    isEventInsideNodes(event, resolveIgnoreNodes(ignore, getListenerRoots(), window))
 
   const listener = (event: Event) => {
-    const el = access(target)
-    if (event.target == null) return
-
-    if (!el || el === event.target || event.composedPath().includes(el)) return
+    const targetNodes = getTargetNodes()
+    if (event.target == null || !targetNodes.length || isEventInsideNodes(event, targetNodes)) return
 
     if ('detail' in event && event.detail === 0) {
       shouldListen = !shouldIgnore(event)
@@ -97,6 +145,7 @@ export function onClickOutside(
       shouldListen = true
       return
     }
+
     handler(event as any)
   }
 
@@ -104,47 +153,52 @@ export function onClickOutside(
 
   const stop = createRoot(dispose => {
     useEventListener(
-      window,
+      getListenerRoots,
       'click',
-      (event: PointerEvent) => {
-        if (!isProcessingClick) {
-          isProcessingClick = true
-          setTimeout(() => {
-            isProcessingClick = false
-          }, 0)
-          listener(event)
-        }
+      event => {
+        if (isProcessingClick) return
+        isProcessingClick = true
+        setTimeout(() => {
+          isProcessingClick = false
+        }, 0)
+        listener(event)
       },
       { passive: true, capture },
     )
+
     useEventListener(
-      window,
+      getListenerRoots,
       'pointerdown',
-      e => {
-        const el = access(target)
-        shouldListen = !shouldIgnore(e) && !!(el && !e.composedPath().includes(el))
+      event => {
+        const targetNodes = getTargetNodes()
+        shouldListen = !shouldIgnore(event) && !!(targetNodes.length && !isEventInsideNodes(event, targetNodes))
       },
       { passive: true },
     )
+
     detectIframe &&
       useEventListener(
         window,
         'blur',
         event => {
           setTimeout(() => {
-            const el = access(target)
-            if (!el) return
-            let activeEl: Element | null = window.document.activeElement
+            const targetNodes = getTargetNodes()
+            if (!targetNodes.length) return
+
+            const activeElement = window.document.activeElement
+            let activeEl: Element | null = activeElement
             while (activeEl?.shadowRoot) {
               activeEl = activeEl.shadowRoot.activeElement
             }
-            if (activeEl?.tagName === 'IFRAME' && !el?.contains(window.document.activeElement)) {
+
+            if (activeEl?.tagName === 'IFRAME' && !targetNodes.some(node => node.contains(activeElement))) {
               handler(event as any)
             }
           }, 0)
         },
         { passive: true },
       )
+
     return dispose
   })
 

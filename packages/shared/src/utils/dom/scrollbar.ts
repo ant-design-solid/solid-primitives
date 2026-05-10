@@ -1,3 +1,4 @@
+import { DEV } from 'solid-js'
 import { removeCSS, updateCSS } from './dynamicCSS'
 
 type ExtendCSSStyleDeclaration = CSSStyleDeclaration & {
@@ -6,7 +7,7 @@ type ExtendCSSStyleDeclaration = CSSStyleDeclaration & {
 }
 
 function measureScrollbarSize(ele?: HTMLElement) {
-  const randomId = `sc-scollbar-measure-${Math.random().toString(36).substring(7)}`
+  const randomId = `sc-scrollbar-measure-${Math.random().toString(36).substring(7)}`
   const measureEle = document.createElement('div')
   measureEle.id = randomId
 
@@ -40,7 +41,7 @@ ${height ? `height: ${webkitScrollbarStyle.height};` : ''}
         randomId,
       )
     } catch (e) {
-      console.error(e)
+      DEV && console.error(e)
       fallbackWidth = width
       fallbackHeight = height
     }
@@ -54,8 +55,8 @@ ${height ? `height: ${webkitScrollbarStyle.height};` : ''}
       : measureEle.offsetWidth - measureEle.clientWidth
 
   const scrollHeight =
-    ele && fallbackHeight && !Number.isNaN(fallbackWidth)
-      ? fallbackWidth
+    ele && fallbackHeight && !Number.isNaN(fallbackHeight)
+      ? fallbackHeight
       : measureEle.offsetHeight - measureEle.clientHeight
 
   document.body.removeChild(measureEle)

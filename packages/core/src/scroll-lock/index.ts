@@ -1,124 +1,103 @@
-import {
-  access,
-  isIOS,
-  MaybeAccessor,
-  tryOnCleanup,
-} from "@s-primitives/shared";
-import { Accessor, createEffect, createSignal, untrack } from "solid-js";
-import { makeEventListener } from "../event-listener";
+import { access, isIOS, MaybeAccessor, tryOnCleanup } from '@s-primitives/shared'
+import { Accessor, createEffect, createSignal, onCleanup } from 'solid-js'
+import { makeEventListener } from '../event-listener'
 
-const HIDDEN = "hidden";
-const SCROLL = "scroll";
-const AUTO = "auto";
+const HIDDEN = 'hidden'
+const SCROLL = 'scroll'
+const AUTO = 'auto'
 
-function checkOverflowScroll(ele: Element): boolean {
-  const style = window.getComputedStyle(ele);
+type ScrollLockElement = HTMLElement | SVGElement
+
+type MaybeElement = ScrollLockElement | null | undefined
+
+function checkOverflowScroll(element: Element): boolean {
+  const style = window.getComputedStyle(element)
 
   if (
     style.overflowX === SCROLL ||
-    style.overflowY === "scroll" ||
-    (style.overflowX === AUTO && ele.clientWidth < ele.scrollWidth) ||
-    (style.overflowY === AUTO && ele.clientHeight < ele.scrollHeight)
+    style.overflowY === SCROLL ||
+    (style.overflowX === AUTO && element.clientWidth < element.scrollWidth) ||
+    (style.overflowY === AUTO && element.clientHeight < element.scrollHeight)
   ) {
-    return true;
-  } else {
-    const parent = ele.parentNode as Element;
-    if (!parent || parent.tagName === "BODY") {
-      return false;
-    }
-    return checkOverflowScroll(parent);
+    return true
   }
+
+  const parent = element.parentElement
+  if (!parent || parent.tagName === 'BODY') {
+    return false
+  }
+
+  return checkOverflowScroll(parent)
 }
 
-function preventDefault(rawEvent: TouchEvent): boolean {
-  const e = rawEvent || window.event;
-  const _target = e.target as Element;
-
-  if (checkOverflowScroll(_target)) return false;
-
-  if (e.touches.length > 1) return true;
-
-  e.preventDefault?.();
-
-  return false;
+function preventTouchMove(event: TouchEvent): void {
+  const target = event.target as Element | null
+  if (!target || checkOverflowScroll(target) || event.touches.length > 1) return
+  event.preventDefault()
 }
 
-const elInitialOverflow = new WeakMap<
-  HTMLElement,
-  CSSStyleDeclaration["overflow"]
->();
-
-type MaybeElement = HTMLElement | SVGElement | null | undefined;
+const initialOverflowByElement = new WeakMap<ScrollLockElement, CSSStyleDeclaration['overflow']>()
 
 function resolveElement(el: MaybeElement | Window | Document) {
-  if (typeof Window !== "undefined" && el instanceof Window) {
-    return el.document.documentElement;
+  if (typeof Window !== 'undefined' && el instanceof Window) {
+    return el.document.documentElement
   }
-  if (typeof Document !== "undefined" && el instanceof Document) {
-    return el.documentElement;
+  if (typeof Document !== 'undefined' && el instanceof Document) {
+    return el.documentElement
   }
-  return el as MaybeElement;
+  return el as MaybeElement
 }
 
 export function createScrollLock(
-  element: MaybeAccessor<
-    HTMLElement | SVGElement | Window | Document | null | undefined
-  >,
+  element: MaybeAccessor<ScrollLockElement | Window | Document | null | undefined>,
   initialState = false,
 ): [get: Accessor<boolean>, set: (value: boolean) => void] {
-  const [isLocked, setIsLocked] = createSignal(initialState);
-  let stopTouchMoveListener: VoidFunction | null = null;
-  let initialOverflow: CSSStyleDeclaration["overflow"] = "";
+  const [isLocked, setIsLocked] = createSignal(initialState)
 
   createEffect(() => {
-    const ele = resolveElement(access(element)) as HTMLElement;
+    const el = resolveElement(access(element))
+    if (!el) return
 
-    if (ele) {
-      const elOverflow = ele.style.overflow;
-      if (!elInitialOverflow.get(ele)) {
-        elInitialOverflow.set(ele, elOverflow);
-      }
-      if (ele.style.overflow !== HIDDEN) {
-        initialOverflow = elOverflow;
-      }
-
-      if (ele.style.overflow === HIDDEN) {
-        return setIsLocked(true);
-      }
-      untrack(isLocked) && (ele.style.overflow = HIDDEN);
+    if (!initialOverflowByElement.has(el)) {
+      initialOverflowByElement.set(el, el.style.overflow)
     }
-  });
+
+    if (el.style.overflow === HIDDEN && !isLocked()) {
+      setIsLocked(true)
+      return
+    }
+
+    if (!isLocked()) return
+
+    const initialOverflow = initialOverflowByElement.get(el) ?? ''
+    const stopTouchMoveListener =
+      isIOS && el
+        ? makeEventListener(el, 'touchmove', preventTouchMove, {
+            passive: false,
+          })
+        : null
+
+    el.style.overflow = HIDDEN
+
+    onCleanup(() => {
+      stopTouchMoveListener?.()
+      el.style.overflow = initialOverflow
+      initialOverflowByElement.delete(el)
+    })
+  })
 
   const lock = () => {
-    const el = resolveElement(access(element));
-    if (!el || isLocked()) return;
-
-    if (isIOS) {
-      stopTouchMoveListener = makeEventListener(
-        el,
-        "touchmove",
-        (e) => preventDefault(e),
-        {
-          passive: false,
-        },
-      );
-    }
-
-    el.style.overflow = HIDDEN;
-    setIsLocked(true);
-  };
+    if (isLocked()) return
+    if (!resolveElement(access(element))) return
+    setIsLocked(true)
+  }
 
   const unlock = () => {
-    const el = resolveElement(access(element));
-    if (!el || !isLocked()) return;
+    if (!isLocked()) return
+    setIsLocked(false)
+  }
 
-    isIOS && stopTouchMoveListener?.();
-    el.style.overflow = initialOverflow;
-    elInitialOverflow.delete(el as HTMLElement);
-    setIsLocked(false);
-  };
+  tryOnCleanup(unlock)
 
-  tryOnCleanup(unlock);
-
-  return [isLocked, (v: boolean) => (v ? lock() : unlock())];
+  return [isLocked, value => (value ? lock() : unlock())]
 }

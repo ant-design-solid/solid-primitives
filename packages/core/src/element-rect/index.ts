@@ -1,5 +1,5 @@
 import { access, MaybeAccessor, MaybeElement } from '@s-primitives/shared'
-import { createEffect, createSignal, onMount } from 'solid-js'
+import { createEffect, createSignal } from 'solid-js'
 import { untrack } from 'solid-js/web'
 import { ConfigurableWindow, defaultWindow } from '../_configurable'
 import { useEventListener } from '../event-listener'
@@ -77,9 +77,14 @@ export function createElementRect(target: MaybeAccessor<MaybeElement>, options: 
     }
   }
 
-  createEffect(() => {
-    const el = access(target)
-    !el && untrack(update)
+  createEffect(prev => {
+    const el = access(target) ?? null
+
+    if (prev === undefined ? immediate : el !== prev) {
+      untrack(update)
+    }
+
+    return el
   })
 
   createResizeObserver(target, update)
@@ -87,10 +92,6 @@ export function createElementRect(target: MaybeAccessor<MaybeElement>, options: 
   windowScroll && useEventListener(window, 'scroll', update, { capture: true, passive: true })
 
   windowResize && useEventListener(window, 'resize', update, { passive: true })
-
-  onMount(() => {
-    immediate && update()
-  })
 
   return {
     rect,

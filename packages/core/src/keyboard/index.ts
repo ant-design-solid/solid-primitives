@@ -1,29 +1,51 @@
-import { isIOS, MaybeArray, toArray, tryOnCleanup, ValueOf } from '@s-primitives/shared'
-import { onCleanup, onMount } from 'solid-js'
+import {
+  access,
+  isIOS,
+  MaybeAccessor,
+  MaybeArray,
+  noop,
+  Pausable,
+  toArray,
+  tryOnCleanup,
+  ValueOf,
+} from '@s-primitives/shared'
+import { createEffect, createSignal } from 'solid-js'
 import type { ConfigurableWindow } from '../_configurable'
 import { defaultWindow } from '../_configurable'
 import { makeEventListener } from '../event-listener'
 
 export type KeyCombo = MaybeArray<string>
 
-export interface UseKeyboardOptions extends ConfigurableWindow {
+export interface MakeKeyboardOptions extends ConfigurableWindow {
   ignore?: (e: KeyboardEvent, target: Element | null, combo: string | null) => boolean
+  sequenceTimeout?: number
 }
+
+export interface KeyboardBindingOptions {
+  preventDefault?: boolean
+  stopPropagation?: boolean
+}
+
+export interface CreateShortcutReturn extends Pausable {}
 
 interface ParsedCombo {
   key: string | null
   modifiers: Modifier[]
 }
 
+interface BindingListener {
+  token: number
+  action: VoidFunction
+  options: Required<KeyboardBindingOptions>
+}
+
 interface Binding {
-  id: string
-  lookupKey: string
   combos: ParsedCombo[]
-  action: () => void
+  listeners: BindingListener[]
 }
 
 const PLUS_PLACEHOLDER = '__diagen_plus__'
-const SEQUENCE_TIMEOUT = 1000
+const DEFAULT_SEQUENCE_TIMEOUT = 1000
 
 const MODIFIER_ALIASES = {
   ctrl: 'ctrl',
@@ -248,10 +270,6 @@ function getBindingId(combos: ParsedCombo[]): string {
   return combos.map(comboToId).join(' ')
 }
 
-function getLookupKey(combo: ParsedCombo): string {
-  return combo.key ? `key:${combo.key}` : `mods:${combo.modifiers.join('+')}`
-}
-
 function getEventModifiers(e: KeyboardEvent): Modifier[] {
   const modifiers: Modifier[] = []
 
@@ -268,20 +286,6 @@ function getEventCombo(e: KeyboardEvent): ParsedCombo {
     key: normalizeEventKey(e),
     modifiers: getEventModifiers(e),
   }
-}
-
-function getEventLookupKeys(combo: ParsedCombo): string[] {
-  const lookupKeys: string[] = []
-
-  if (combo.key) {
-    lookupKeys.push(`key:${combo.key}`)
-  }
-
-  if (combo.modifiers.length > 0) {
-    lookupKeys.push(`mods:${combo.modifiers.join('+')}`)
-  }
-
-  return lookupKeys
 }
 
 function matchCombo(eventCombo: ParsedCombo, combo: ParsedCombo): boolean {
@@ -332,7 +336,6 @@ function getEventTargetElement(e: KeyboardEvent): Element | null {
 
 function defaultIgnoreCallback(_e: KeyboardEvent, target: Element | null): boolean {
   if (!target) return false
-  if (target.closest('.mousetrap')) return false
 
   const tagName = target.tagName
   return (
@@ -340,57 +343,135 @@ function defaultIgnoreCallback(_e: KeyboardEvent, target: Element | null): boole
   )
 }
 
-export function useKeyboard(options: UseKeyboardOptions = {}) {
-  const { window: targetWindow = defaultWindow, ignore = defaultIgnoreCallback } = options
+function createSequence(timeout: number) {
+  let value: ParsedCombo[] = []
+  let timer: ReturnType<typeof setTimeout> | null = null
 
-  const bindings = new Map<string, Binding>()
-  const lookup = new Map<string, Map<string, Binding>>()
-
-  let sequence: ParsedCombo[] = []
-  let sequenceTimer: ReturnType<typeof setTimeout> | null = null
-
-  const clearSequenceTimer = () => {
-    if (sequenceTimer !== null) {
-      clearTimeout(sequenceTimer)
-      sequenceTimer = null
+  const clear = () => {
+    if (timer !== null) {
+      clearTimeout(timer)
+      timer = null
     }
   }
 
-  const resetSequence = () => {
-    sequence = []
-    clearSequenceTimer()
+  const reset = () => {
+    value = []
+    clear()
   }
 
-  const removeBinding = (id: string) => {
+  const push = (combo: ParsedCombo) => {
+    clear()
+    value = [...value, combo]
+    timer = setTimeout(() => {
+      value = []
+      timer = null
+    }, timeout)
+  }
+
+  const matches = (combos: ParsedCombo[]) => {
+    if (value.length < combos.length) return false
+    const recentSequence = value.slice(-combos.length)
+    return recentSequence.every((combo, index) => matchCombo(combo, combos[index]))
+  }
+
+  return {
+    get value() {
+      return value
+    },
+    push,
+    reset,
+    matches,
+  }
+}
+
+function runAction(action: VoidFunction, options: Required<KeyboardBindingOptions>, event?: KeyboardEvent) {
+  if (event && options.preventDefault) {
+    event.preventDefault()
+  }
+
+  if (event && options.stopPropagation) {
+    event.stopPropagation()
+  }
+
+  action()
+}
+
+export function makeKeyboard(options: MakeKeyboardOptions = {}) {
+  const {
+    window: targetWindow = defaultWindow,
+    ignore = defaultIgnoreCallback,
+    sequenceTimeout = DEFAULT_SEQUENCE_TIMEOUT,
+  } = options
+
+  const bindings = new Map<string, Binding>()
+  const lookup = new Map<string, Map<string, Binding>>()
+  const sequence = createSequence(sequenceTimeout)
+  let listenerToken = 0
+
+  const getLookupKey = (combo: ParsedCombo) => (combo.key ? `key:${combo.key}` : `mods:${combo.modifiers.join('+')}`)
+
+  const getEventLookupKeys = (combo: ParsedCombo) => {
+    const lookupKeys: string[] = []
+
+    if (combo.key) {
+      lookupKeys.push(`key:${combo.key}`)
+    }
+
+    if (combo.modifiers.length > 0) {
+      lookupKeys.push(`mods:${combo.modifiers.join('+')}`)
+    }
+
+    return lookupKeys
+  }
+
+  const removeBindingEntry = (id: string) => {
     const binding = bindings.get(id)
     if (!binding) return
 
     bindings.delete(id)
-    const bucket = lookup.get(binding.lookupKey)
-    bucket?.delete(id)
-    if (bucket?.size === 0) {
-      lookup.delete(binding.lookupKey)
+    const lastCombo = binding.combos[binding.combos.length - 1]
+    const bucket = lookup.get(getLookupKey(lastCombo))
+    if (!bucket) return
+
+    bucket.delete(id)
+    if (bucket.size === 0) {
+      lookup.delete(getLookupKey(lastCombo))
     }
   }
 
-  const addBinding = (combos: ParsedCombo[], action: () => void): string => {
+  const removeListener = (id: string, token: number) => {
+    const binding = bindings.get(id)
+    if (!binding) return
+
+    const index = binding.listeners.findIndex(listener => listener.token === token)
+    if (index === -1) return
+
+    binding.listeners.splice(index, 1)
+    if (binding.listeners.length === 0) {
+      removeBindingEntry(id)
+    }
+  }
+
+  const ensureBinding = (combos: ParsedCombo[]): Binding => {
     const id = getBindingId(combos)
-    removeBinding(id)
+    const existing = bindings.get(id)
+    if (existing) {
+      return existing
+    }
 
     const binding: Binding = {
-      id,
-      lookupKey: getLookupKey(combos[combos.length - 1]),
       combos,
-      action,
+      listeners: [],
     }
 
     bindings.set(id, binding)
 
-    const bucket = lookup.get(binding.lookupKey) ?? new Map<string, Binding>()
+    const lookupKey = getLookupKey(combos[combos.length - 1])
+    const bucket = lookup.get(lookupKey) ?? new Map<string, Binding>()
     bucket.set(id, binding)
-    lookup.set(binding.lookupKey, bucket)
+    lookup.set(lookupKey, bucket)
 
-    return id
+    return binding
   }
 
   const getCandidates = (eventCombo: ParsedCombo): Binding[] => {
@@ -408,6 +489,17 @@ export function useKeyboard(options: UseKeyboardOptions = {}) {
     return Array.from(candidates.values())
   }
 
+  const runBinding = (binding: Binding, event?: KeyboardEvent) => {
+    for (let index = binding.listeners.length - 1; index >= 0; index -= 1) {
+      const listener = binding.listeners[index]
+      runAction(listener.action, listener.options, event)
+
+      if (listener.options.stopPropagation) {
+        break
+      }
+    }
+  }
+
   const handleKeyDown = (e: KeyboardEvent) => {
     const eventCombo = getEventCombo(e)
     const comboText = comboToId(eventCombo) || null
@@ -417,70 +509,156 @@ export function useKeyboard(options: UseKeyboardOptions = {}) {
       return
     }
 
-    clearSequenceTimer()
-    sequence = [...sequence, eventCombo]
-    sequenceTimer = setTimeout(() => {
-      sequence = []
-      sequenceTimer = null
-    }, SEQUENCE_TIMEOUT)
+    sequence.push(eventCombo)
 
     for (const binding of getCandidates(eventCombo)) {
-      if (binding.combos.length === 1) {
-        if (!matchCombo(eventCombo, binding.combos[0])) continue
-
-        e.preventDefault()
-        binding.action()
-        resetSequence()
-        return
-      }
-
-      const recentSequence = sequence.slice(-binding.combos.length)
-      if (recentSequence.length !== binding.combos.length) continue
-
-      const matched = recentSequence.every((combo, index) => matchCombo(combo, binding.combos[index]))
+      const matched = binding.combos.length === 1 ? matchCombo(eventCombo, binding.combos[0]) : sequence.matches(binding.combos)
       if (!matched) continue
 
-      e.preventDefault()
-      binding.action()
-      resetSequence()
+      runBinding(binding, e)
+      sequence.reset()
       return
     }
   }
 
-  const bind = (key: KeyCombo, action: () => void): (() => void) => {
-    const ids = parseKeys(key).map(combos => addBinding(combos, action))
+  const bind = (key: KeyCombo, action: VoidFunction, options: KeyboardBindingOptions = {}): VoidFunction => {
+    const { preventDefault = true, stopPropagation = false } = options
+    const ids = parseKeys(key).map(combos => {
+      const binding = ensureBinding(combos)
+      const token = listenerToken
+      listenerToken += 1
+
+      binding.listeners.push({
+        token,
+        action,
+        options: {
+          preventDefault,
+          stopPropagation,
+        },
+      })
+
+      return {
+        id: getBindingId(combos),
+        token,
+      }
+    })
+
     const off = () => {
-      ids.forEach(removeBinding)
+      ids.forEach(({ id, token }) => removeListener(id, token))
     }
+
     tryOnCleanup(off)
     return off
   }
 
   const unbind = (key: KeyCombo): void => {
     parseKeys(key).forEach(combos => {
-      removeBinding(getBindingId(combos))
+      removeBindingEntry(getBindingId(combos))
     })
   }
 
   const trigger = (key: KeyCombo): void => {
     parseKeys(key).forEach(combos => {
-      bindings.get(getBindingId(combos))?.action()
+      const binding = bindings.get(getBindingId(combos))
+      if (binding) {
+        runBinding(binding)
+      }
     })
   }
 
   const reset = (): void => {
     bindings.clear()
     lookup.clear()
-    resetSequence()
+    sequence.reset()
   }
 
-  onMount(() => {
-    targetWindow && makeEventListener(targetWindow, 'keydown', handleKeyDown as EventListener)
-  })
+  targetWindow && makeEventListener(targetWindow, 'keydown', handleKeyDown as EventListener)
 
-  onCleanup(reset)
+  tryOnCleanup(reset)
 
   return { bind, unbind, trigger, reset }
 }
 
-export type UseKeyboard = ReturnType<typeof useKeyboard>
+export type MakeKeyboard = ReturnType<typeof makeKeyboard>
+
+export interface CreateShortcutOptions extends MakeKeyboardOptions, KeyboardBindingOptions {
+  immediate?: boolean
+}
+
+export function createShortcut(
+  keyCombo: MaybeAccessor<KeyCombo | null | undefined>,
+  action: VoidFunction,
+  options: CreateShortcutOptions = {},
+): CreateShortcutReturn {
+  const {
+    immediate = true,
+    preventDefault = true,
+    stopPropagation = false,
+    window: targetWindow = defaultWindow,
+    ignore = defaultIgnoreCallback,
+    sequenceTimeout = DEFAULT_SEQUENCE_TIMEOUT,
+  } = options
+
+  const bindingOptions = {
+    preventDefault,
+    stopPropagation,
+  }
+
+  const [isActive, setIsActive] = createSignal(immediate)
+  const sequence = createSequence(sequenceTimeout)
+  let off: VoidFunction = noop
+
+  createEffect(() => {
+    const combo = access(keyCombo)
+    const combos = combo ? parseKeys(combo) : []
+
+    off()
+    sequence.reset()
+
+    if (!isActive() || !targetWindow || combos.length === 0) {
+      off = noop
+      return
+    }
+
+    off = makeEventListener(targetWindow, 'keydown', (e: KeyboardEvent) => {
+      const eventCombo = getEventCombo(e)
+      const comboText = comboToId(eventCombo) || null
+      const target = getEventTargetElement(e)
+
+      if (ignore(e, target, comboText)) {
+        return
+      }
+
+      sequence.push(eventCombo)
+
+      const matched = combos.some(parts => (parts.length === 1 ? matchCombo(eventCombo, parts[0]) : sequence.matches(parts)))
+      if (!matched) return
+
+      runAction(action, bindingOptions, e)
+      sequence.reset()
+    })
+  })
+
+  const pause = () => {
+    off()
+    sequence.reset()
+    setIsActive(false)
+  }
+
+  const resume = () => {
+    setIsActive(true)
+  }
+
+  tryOnCleanup(() => {
+    off()
+    sequence.reset()
+  })
+
+  return {
+    isActive,
+    pause,
+    resume,
+  }
+}
+
+export type CreateShortcut = ReturnType<typeof createShortcut>

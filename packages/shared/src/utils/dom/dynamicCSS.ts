@@ -10,7 +10,7 @@ export type ContainerType = Element | ShadowRoot
 export type Prepend = boolean | 'queue'
 export type AppendType = 'prependQueue' | 'append' | 'prepend'
 
-interface DynamicCssOptions {
+interface DynamicCSSOptions {
   attachTo?: ContainerType
   csp?: { nonce?: string }
   prepend?: Prepend
@@ -22,13 +22,13 @@ interface DynamicCssOptions {
   mark?: string
 }
 
-function getMark({ mark }: DynamicCssOptions) {
+function getMark({ mark }: DynamicCSSOptions) {
   if (mark) return mark.startsWith('data-') ? mark : `data-${mark}`
 
   return MARK_KEY
 }
 
-function getContainer(options: DynamicCssOptions) {
+function getContainer(options: DynamicCSSOptions) {
   if (options.attachTo) return options.attachTo
   const head = document.querySelector('head')
 
@@ -47,12 +47,12 @@ function findStyles(container: ContainerType) {
   ) as HTMLStyleElement[]
 }
 
-function findExistNode(key: string, options: DynamicCssOptions) {
+function findExistNode(key: string, options: DynamicCSSOptions) {
   const container = getContainer(options)
   return container.querySelector<HTMLStyleElement>(`style[${getMark(options)}="${key}"]`)
 }
 
-function syncRealContainer(container: ContainerType, options: DynamicCssOptions) {
+function syncRealContainer(container: ContainerType, options: DynamicCSSOptions) {
   const cached = containerCache.get(container)
 
   if (!cached || !document.contains(cached)) {
@@ -63,7 +63,7 @@ function syncRealContainer(container: ContainerType, options: DynamicCssOptions)
   }
 }
 
-export function injectCSS(css: string, options: DynamicCssOptions = {}) {
+export function injectCSS(css: string, options: DynamicCSSOptions = {}) {
   if (!canUseDom()) return null
   const { csp, prepend, priority = 0 } = options
   const mergedOrder = getOrder(prepend)
@@ -72,7 +72,9 @@ export function injectCSS(css: string, options: DynamicCssOptions = {}) {
   const styleNode = document.createElement('style')
   styleNode.setAttribute(APPEND_ORDER, mergedOrder)
 
-  isPrependQueue && priority && styleNode.setAttribute(APPEND_ORDER, `${priority}`)
+  if (isPrependQueue) {
+    styleNode.setAttribute(APPEND_PRIORITY, `${priority}`)
+  }
 
   csp?.nonce && (styleNode.nonce = csp.nonce)
 
@@ -103,13 +105,12 @@ export function injectCSS(css: string, options: DynamicCssOptions = {}) {
   return styleNode
 }
 
-export function updateCSS(css: string, key: string, option: DynamicCssOptions = {}) {
+export function updateCSS(css: string, key: string, option: DynamicCSSOptions = {}) {
   if (!canUseDom()) {
     return null
   }
   const container = getContainer(option)
 
-  // Sync real parent
   syncRealContainer(container, option)
 
   const existNode = findExistNode(key, option)
@@ -127,7 +128,7 @@ export function updateCSS(css: string, key: string, option: DynamicCssOptions = 
   return newNode
 }
 
-export function removeCSS(key: string, options: DynamicCssOptions = {}) {
+export function removeCSS(key: string, options: DynamicCSSOptions = {}) {
   if (!canUseDom()) return
   const existNode = findExistNode(key, options)
 

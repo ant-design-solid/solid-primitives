@@ -1,3 +1,5 @@
+import { Accessor } from 'solid-js'
+
 export type AnyFunction = (...args: any[]) => any
 
 export type Nullable<T> = T | null | undefined
@@ -39,3 +41,11 @@ export type Mutable<T> = {
 export type Optional<T, K extends keyof T> = Pick<Partial<T>, K> & Omit<T, K>
 
 export type Assign<T, U> = Omit<T, keyof U> & U
+
+export interface Pausable {
+  isActive: Accessor<boolean>
+
+  pause: VoidFunction
+
+  resume: VoidFunction
+}

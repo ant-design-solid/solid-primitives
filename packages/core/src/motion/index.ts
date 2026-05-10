@@ -367,7 +367,8 @@ export function tween<T>(
       }
 
       const now = Date.now();
-      const alpha = ease((now - startedAt) / duration);
+      const progress = Math.min((now - startedAt) / duration, 1);
+      const alpha = ease(progress);
 
       setSource(interpolation(fromVal, toVal, alpha));
 
