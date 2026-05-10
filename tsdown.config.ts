@@ -56,7 +56,7 @@ export function createTsDownConfig(options: CreateTsDownConfigOptions = {}) {
 
   formats.forEach(format => {
     const isEs = format === 'esm'
-    const ext = isEs ? 'mjs' : 'js'
+    const ext = isEs ? 'js' : 'cjs'
 
     configs.push({
       ...baseConfig,
