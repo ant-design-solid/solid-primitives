@@ -1,9 +1,8 @@
 {
   "name": "@s-primitives/shared",
-  "version": "0.1.0-beta.4",
+  "version": "0.1.0-beta.5",
   "description": "solid primitives",
   "author": "Kory Lee <https://github.com/korylee>",
-  "type": "module",
   "files": [
     "dist"
   ],
@@ -13,7 +12,8 @@
     "hooks"
   ],
   "sideEffects": false,
-  "main": "dist/index.cjs",
+  "type": "module",
+  "main": "dist/index.js",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
@@ -27,13 +27,14 @@
       "module": "./dist/index.js",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "scripts": {
     "build": "tsdown"
   },
   "peerDependencies": {
-    "solid-js": "^1.9.12"
+    "solid-js": "^1.9.11"
   },
   "license": "ISC"
 }
