@@ -1,5 +1,5 @@
 import { batch } from 'solid-js'
-import { hasOwn, toRawType } from '@s-primitives/shared'
+import { hasOwn, toRawType } from '../utils'
 import { createTriggerCache } from '../trigger'
 
 type IterableCollections = (Map<any, any> | Set<any>) & Target
@@ -15,7 +15,7 @@ interface Target {
 const $RAW = Symbol('$__raw')
 const $OBJECT = Symbol('$__object')
 
-export function createShallowCollection<T extends CollectionTypes>(target: T): T {
+export function createMutableCollection<T extends CollectionTypes>(target: T): T {
   if (target[$RAW] || !Object.isExtensible(target)) {
     return target
   }

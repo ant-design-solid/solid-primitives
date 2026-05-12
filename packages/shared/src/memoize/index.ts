@@ -1,5 +1,5 @@
 import { isMap } from "@s-primitives/shared";
-import { createShallowCollection } from "../collection";
+import { createMutableCollection } from "../collection";
 
 export type CacheKey = any;
 
@@ -31,7 +31,7 @@ export function createMemoize<Result, Args extends unknown[]>(
   resolver: (...args: Args) => Result,
   options: CreateMemoizeOptions<Result, Args> = {},
 ): CreateMemoizeReturn<Result, Args> {
-  const cache: CreateMemoizeCache<CacheKey, Result> = createShallowCollection(
+  const cache: CreateMemoizeCache<CacheKey, Result> = createMutableCollection(
     (options.cache as any) ?? new Map(),
   );
 

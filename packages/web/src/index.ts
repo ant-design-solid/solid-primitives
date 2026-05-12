@@ -17,6 +17,3 @@ export * from './element-size'
 
 export * from './keyboard'
 
-export * from './collection'
-export * from './memoize'
-export * from './trigger'
