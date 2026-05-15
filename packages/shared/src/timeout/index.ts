@@ -14,7 +14,7 @@ export interface TimeoutOptions {
   immediateCallback?: boolean
 }
 
-export function useTimeout<Callback extends AnyFunction>(
+export function createTimeout<Callback extends AnyFunction>(
   cb: Callback,
   interval: MaybeAccessor<number>,
   options: TimeoutOptions = {},
