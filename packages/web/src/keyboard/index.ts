@@ -8,7 +8,7 @@ import {
   toArray,
   tryOnCleanup,
   ValueOf,
-} from '@s-primitives/shared'
+} from '@solid-primitive/shared'
 import { createEffect, createSignal } from 'solid-js'
 import type { ConfigurableWindow } from '../_configurable'
 import { defaultWindow } from '../_configurable'

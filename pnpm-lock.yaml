@@ -118,7 +118,7 @@ importers:
 
   packages/web:
     dependencies:
-      '@s-primitives/shared':
+      '@solid-primitive/shared':
         specifier: workspace:^
         version: link:../shared
       solid-js:

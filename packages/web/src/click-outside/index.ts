@@ -1,4 +1,4 @@
-import { access, isIOS, MaybeAccessor, MaybeElement, noop, toArray, tryOnCleanup } from '@s-primitives/shared'
+import { access, isIOS, MaybeAccessor, MaybeElement, noop, toArray, tryOnCleanup } from '@solid-primitive/shared'
 import { createMemo, createRoot } from 'solid-js'
 import { ConfigurableWindow, defaultWindow } from '../_configurable'
 import { useEventListener } from '../event-listener'

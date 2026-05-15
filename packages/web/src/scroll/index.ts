@@ -1,4 +1,4 @@
-import { access, MaybeAccessor, useDebounce, useThrottle } from '@s-primitives/shared'
+import { access, MaybeAccessor, useDebounce, useThrottle } from '@solid-primitive/shared'
 import { batch, createSignal, onMount } from 'solid-js'
 import { createMutable, createStore } from 'solid-js/store'
 import { type ConfigurableWindow, defaultWindow } from '../_configurable'

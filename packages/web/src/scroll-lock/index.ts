@@ -1,4 +1,4 @@
-import { access, isIOS, MaybeAccessor, tryOnCleanup } from '@s-primitives/shared'
+import { access, isIOS, MaybeAccessor, tryOnCleanup } from '@solid-primitive/shared'
 import { Accessor, createEffect, createSignal, onCleanup } from 'solid-js'
 import { makeEventListener } from '../event-listener'
 

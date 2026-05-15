@@ -1,6 +1,6 @@
 {
-  "name": "@s-primitives/web",
-  "version": "0.1.0-beta.5",
+  "name": "@solid-primitive/web",
+  "version": "0.1.0-beta.1",
   "description": "solid primitives",
   "author": "Kory Lee <https://github.com/korylee>",
   "files": [
@@ -29,7 +29,7 @@
     "build": "tsdown"
   },
   "dependencies": {
-    "@s-primitives/shared": "workspace:^"
+    "@solid-primitive/shared": "workspace:^"
   },
   "peerDependencies": {
     "solid-js": "^1.6.12"

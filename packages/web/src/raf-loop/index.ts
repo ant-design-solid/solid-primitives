@@ -1,6 +1,6 @@
 import { createSignal } from 'solid-js'
 import { ConfigurableWindow, defaultWindow } from '../_configurable'
-import { access, MaybeAccessor, tryOnCleanup } from '@s-primitives/shared'
+import { access, MaybeAccessor, tryOnCleanup } from '@solid-primitive/shared'
 
 export interface CreateRafLoopOptions extends ConfigurableWindow {
   /**

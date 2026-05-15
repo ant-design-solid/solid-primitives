@@ -16,7 +16,7 @@ import {
   MaybeAccessor,
   noop,
   tryOnCleanup,
-} from "@s-primitives/shared";
+} from "@solid-primitive/shared";
 import { ConfigurableWindow, defaultWindow } from "../_configurable";
 
 export type MotionMode = "out-in" | "in-out" | "parallel";

@@ -1,5 +1,5 @@
 import { Accessor, createEffect, createMemo, createRoot, createSignal } from 'solid-js'
-import { access, MaybeAccessor, MaybeElement, tryOnCleanup, toArray } from '@s-primitives/shared'
+import { access, MaybeAccessor, MaybeElement, tryOnCleanup, toArray } from '@solid-primitive/shared'
 import { defaultWindow } from '../_configurable'
 import { createResizeObserver, CreateResizeObserverControls, CreateResizeObserverOptions } from '../resize-observer'
 

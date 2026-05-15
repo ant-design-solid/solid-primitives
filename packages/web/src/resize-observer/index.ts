@@ -1,5 +1,5 @@
 import { Accessor, createEffect, createMemo, createRoot, onCleanup } from 'solid-js'
-import { access, MaybeAccessor, MaybeElement, toArray, tryOnCleanup } from '@s-primitives/shared'
+import { access, MaybeAccessor, MaybeElement, toArray, tryOnCleanup } from '@solid-primitive/shared'
 import { ConfigurableWindow, defaultWindow } from '../_configurable'
 
 export interface CreateResizeObserverOptions extends ResizeObserverOptions, ConfigurableWindow {

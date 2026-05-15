@@ -1,4 +1,4 @@
-import { access, isNil, MaybeAccessor, MaybeElement, toArray, tryOnCleanup } from '@s-primitives/shared'
+import { access, isNil, MaybeAccessor, MaybeElement, toArray, tryOnCleanup } from '@solid-primitive/shared'
 import { Accessor, createEffect, createMemo, createRoot, createSignal, onCleanup } from 'solid-js'
 import { ConfigurableWindow, defaultWindow } from '../_configurable'
 

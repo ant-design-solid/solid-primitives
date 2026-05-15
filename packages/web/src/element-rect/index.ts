@@ -1,4 +1,4 @@
-import { access, MaybeAccessor, MaybeElement } from '@s-primitives/shared'
+import { access, MaybeAccessor, MaybeElement } from '@solid-primitive/shared'
 import { createEffect, createSignal } from 'solid-js'
 import { untrack } from 'solid-js/web'
 import { ConfigurableWindow, defaultWindow } from '../_configurable'

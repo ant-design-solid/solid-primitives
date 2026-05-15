@@ -6,7 +6,7 @@ import {
   toArray,
   tryOnCleanup,
   type MaybeArray,
-} from "@s-primitives/shared";
+} from "@solid-primitive/shared";
 
 interface InferEventTarget<Events> {
   addEventListener: (event: Events, fn?: any, options?: any) => any;

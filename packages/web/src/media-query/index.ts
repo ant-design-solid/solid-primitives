@@ -1,4 +1,4 @@
-import { access, isFunction, MaybeAccessor } from '@s-primitives/shared'
+import { access, isFunction, MaybeAccessor } from '@solid-primitive/shared'
 import { createEffect, createMemo, createSignal } from 'solid-js'
 import { ConfigurableWindow, defaultWindow } from '../_configurable'
 import { useEventListener } from '../event-listener'

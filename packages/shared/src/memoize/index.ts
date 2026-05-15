@@ -1,4 +1,4 @@
-import { isMap } from "@s-primitives/shared";
+import { isMap } from "@solid-primitive/shared";
 import { createMutableCollection } from "../collection";
 
 export type CacheKey = any;
